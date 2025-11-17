@@ -1,0 +1,29 @@
+{
+  "name": "aeropinn-aircraft-frontend",
+  "version": "1.0.0",
+  "description": "Physics-Informed Neural Networks for Aircraft Wing Aerodynamic Analysis - Frontend",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "next": "^14.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "three": "^r128",
+    "@react-three/fiber": "^8.14.0",
+    "@react-three/drei": "^9.88.0",
+    "axios": "^1.6.0",
+    "chart.js": "^4.4.0",
+    "react-chartjs-2": "^5.2.0",
+    "tailwindcss": "^3.3.0",
+    "postcss": "^8.4.31",
+    "autoprefixer": "^10.4.16"
+  },
+  "devDependencies": {
+    "eslint": "^8.50.0",
+    "eslint-config-next": "^14.0.0"
+  }
+}
