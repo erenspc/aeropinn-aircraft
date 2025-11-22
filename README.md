@@ -327,4 +327,138 @@ MIT License - See LICENSE file
 
 ---
 
+## Production Deployment with Kubernetes
+
+This project includes comprehensive Kubernetes manifests for production deployment on any Kubernetes cluster (AWS EKS, Azure AKS, GCP GKE, or on-premises).
+
+### Quick Start: Deploy to Kubernetes
+
+#### Prerequisites
+- Kubernetes cluster (v1.19+)
+- `kubectl` CLI configured
+- Docker images pushed to registry (erenspc/aeropinn-backend:latest, erenspc/aeropinn-frontend:latest)
+
+#### Step 1: Create Secrets
+
+```bash
+# Create namespace
+kubectl create namespace aeropinn
+
+# Create secrets for database credentials
+kubectl create secret generic aeropinn-secrets -n aeropinn \
+  --from-literal=database_url='postgresql://user:password@postgres-host:5432/aeropinn' \
+  --from-literal=secret_key='your-production-secret-key-change-this'
+```
+
+#### Step 2: Deploy Manifests
+
+```bash
+# Deploy all Kubernetes resources
+kubectl apply -f infra/k8s/deployment.yaml
+```
+
+This creates:
+- **Namespace**: Isolated aeropinn environment
+- **ConfigMap**: 11 configuration parameters
+- **Services**: LoadBalancer endpoints for backend (8000) and frontend (3000)
+- **Deployments**: Backend (FastAPI, 2 replicas) + Frontend (Next.js, 2 replicas)
+- **HPAs**: Auto-scaling from 2-10 pods (backend), 2-5 pods (frontend)
+- **PodDisruptionBudget**: High availability guarantees
+- **NetworkPolicy**: Security policies between services
+
+#### Step 3: Verify Deployment
+
+```bash
+# Check pod status
+kubectl get pods -n aeropinn
+
+# Check services and get external IPs
+kubectl get svc -n aeropinn
+
+# Check HPA status
+kubectl get hpa -n aeropinn
+kubectl describe hpa aeropinn-backend-hpa -n aeropinn
+```
+
+#### Step 4: Access the Application
+
+```bash
+# Get LoadBalancer IPs (wait for External-IP to be assigned)
+kubectl get svc aeropinn-backend-service aeropinn-frontend-service -n aeropinn
+
+# Or use port-forwarding for testing
+kubectl port-forward svc/aeropinn-backend-service 8000:8000 -n aeropinn &
+kubectl port-forward svc/aeropinn-frontend-service 3000:3000 -n aeropinn &
+
+# Access URLs
+echo "Backend API: http://localhost:8000"
+echo "Frontend: http://localhost:3000"
+```
+
+### Scalability Testing
+
+Demonstrate auto-scaling capabilities:
+
+```bash
+# Generate load to trigger autoscaling
+kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh
+
+# Inside the load generator pod, run:
+while sleep 0.01; do
+  wget -q -O- http://aeropinn-backend-service.aeropinn.svc.cluster.local:8000/api/predict
+done
+
+# In another terminal, watch HPA metrics
+kubectl get hpa aeropinn-backend-hpa -n aeropinn -w
+kubectl top pod -n aeropinn  # CPU/Memory usage
+```
+
+Expected behavior:
+- Pods will scale up from 2 to 10 replicas when CPU > 70%
+- Pods will scale down when load decreases
+- Zero-downtime rolling updates on new deployments
+
+### Production Checklist
+
+Before deploying to production:
+
+- [ ] Update Docker image tags in deployment.yaml to specific versions (not `latest`)
+- [ ] Configure actual database credentials in secrets (don't commit to repo)
+- [ ] Set up proper Ingress controller with TLS certificates
+- [ ] Configure persistent volumes for model cache if needed
+- [ ] Set up Prometheus/Grafana for monitoring
+- [ ] Enable network policies and RBAC
+- [ ] Configure log aggregation (ELK, Datadog, etc.)
+- [ ] Set up CI/CD pipeline to push images and deploy automatically
+- [ ] Test disaster recovery and backup procedures
+- [ ] Configure resource quotas per namespace
+
+### Deployment Configuration Reference
+
+**Resource Limits:**
+- Backend: 100m-500m CPU, 256Mi-512Mi Memory
+- Frontend: 50m-200m CPU, 128Mi-256Mi Memory
+
+**Auto-scaling Triggers:**
+- Backend: Scales at 70% CPU utilization or 80% memory utilization
+- Frontend: Scales at 75% CPU utilization
+
+**High Availability:**
+- Pod anti-affinity: Pods spread across different nodes
+- Pod disruption budgets: Minimum 1 pod always available
+- Rolling updates: Maximum 1 unavailable pod at a time
+
+**Health Checks:**
+- Liveness probe: Restarts unhealthy containers
+- Readiness probe: Removes unhealthy pods from load balancer
+
+### Documentation Files
+
+Related deployment documentation:
+- `docs/DEPLOYMENT_GUIDE.md` - Detailed deployment instructions
+- `docs/validation/` - Performance validation reports
+- `CHANGELOG.md` - Version history and roadmap
+
+---
+
 **Status:** Production-ready | Last Updated: Nov 2025
