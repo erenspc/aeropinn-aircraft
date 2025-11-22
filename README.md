@@ -1,16 +1,77 @@
 # AeroPINN-Aircraft: Complete System Rebuild
 
+## Public Repository Overview
+
+The entire AeroPINN-Aircraft project is publicly available for verification, peer-review, and further development.
+
+### Main Repository
+[https://github.com/erenspc/aeropinn-aircraft](https://github.com/erenspc/aeropinn-aircraft)
+
+---
+
+## Included Technical Documents (Direct Links)
+
+### 1. Stall Validation Report
+[https://github.com/erenspc/aeropinn-aircraft/blob/main/docs/validation/stall_report.md](https://github.com/erenspc/aeropinn-aircraft/blob/main/docs/validation/stall_report.md)
+
+### 2. Latency & Load Testing Report
+[https://github.com/erenspc/aeropinn-aircraft/blob/main/docs/validation/latency_report.md](https://github.com/erenspc/aeropinn-aircraft/blob/main/docs/validation/latency_report.md)
+
+### 3. Changelog
+[https://github.com/erenspc/aeropinn-aircraft/blob/main/CHANGELOG.md](https://github.com/erenspc/aeropinn-aircraft/blob/main/CHANGELOG.md)
+
+### 4. CI/CD Pipeline (GitHub Actions)
+[https://github.com/erenspc/aeropinn-aircraft/blob/main/.github/workflows/ci.yml](https://github.com/erenspc/aeropinn-aircraft/blob/main/.github/workflows/ci.yml)
+
+### 5. Kubernetes Deployment Configurations
+[https://github.com/erenspc/aeropinn-aircraft/blob/main/infra/k8s/deployment.yaml](https://github.com/erenspc/aeropinn-aircraft/blob/main/infra/k8s/deployment.yaml)
+
+### 6. Production Deployment Guide (README)
+[https://github.com/erenspc/aeropinn-aircraft/blob/main/README.md](https://github.com/erenspc/aeropinn-aircraft/blob/main/README.md)
+
+---
+
+## Repository Folder Structure
+
+### Backend
+[https://github.com/erenspc/aeropinn-aircraft/tree/main/backend](https://github.com/erenspc/aeropinn-aircraft/tree/main/backend)
+
+### Frontend
+[https://github.com/erenspc/aeropinn-aircraft/tree/main/frontend](https://github.com/erenspc/aeropinn-aircraft/tree/main/frontend)
+
+### Validation Reports
+[https://github.com/erenspc/aeropinn-aircraft/tree/main/docs/validation](https://github.com/erenspc/aeropinn-aircraft/tree/main/docs/validation)
+
+### Kubernetes Config
+[https://github.com/erenspc/aeropinn-aircraft/tree/main/infra/k8s](https://github.com/erenspc/aeropinn-aircraft/tree/main/infra/k8s)
+
+---
+
+## Quick Access
+
+- Code Browser: [https://github.com/erenspc/aeropinn-aircraft/tree/main](https://github.com/erenspc/aeropinn-aircraft/tree/main)
+- CI/CD Runs: [https://github.com/erenspc/aeropinn-aircraft/actions](https://github.com/erenspc/aeropinn-aircraft/actions)
+- Commit History: [https://github.com/erenspc/aeropinn-aircraft/commits/main](https://github.com/erenspc/aeropinn-aircraft/commits/main)
+- Project Settings: [https://github.com/erenspc/aeropinn-aircraft/settings](https://github.com/erenspc/aeropinn-aircraft/settings)
+
+---
+
+This repository is fully open for transparency, reproducibility, and academic validation.
+
+---
+
+
 ## Overview
 
 Physics-Informed Neural Networks for Aircraft Wing Aerodynamic Analysis using FastAPI + Next.js + PyTorch
 
 This is a **comprehensive, production-ready** system that combines:
-- ✅ **Physics-Informed Neural Networks (PINNs)** with real aerodynamic PDEs
-- ✅ **CFD Pipeline** integration (OpenFOAM-ready)
-- ✅ **3D Visualization** with React Three Fiber
-- ✅ **Reynolds/Mach/AoA Conditioning** for real-world aerodynamic regimes
-- ✅ **Hybrid Loss Training** (supervised + physics-informed)
-- ✅ **Complete Deployment** ready for Railway/Vercel
+-  **Physics-Informed Neural Networks (PINNs)** with real aerodynamic PDEs
+-  **CFD Pipeline** integration (OpenFOAM-ready)
+-  **3D Visualization** with React Three Fiber
+-  **Reynolds/Mach/AoA Conditioning** for real-world aerodynamic regimes
+-  **Hybrid Loss Training** (supervised + physics-informed)
+-  **Complete Deployment** ready for Railway/Vercel
 
 ## Quick Start
 
@@ -112,24 +173,24 @@ aero pinn-aircraft/
 
 ### Step 3: Run Analysis
 Click **Run Analysis**. The system will:
-1. ✅ Validate your CSV
-2. ✅ Compute Reynolds Number: `Re = ρ * V * c / μ`
-3. ✅ Compute Mach Number: `M = V / a`
-4. ✅ Train the PINN with hybrid loss (supervised + physics)
-5. ✅ Predict aerodynamic polars (CL/CD curves)
-6. ✅ Generate pressure distribution (Cp)
-7. ✅ Export 3D wing geometry
+1.  Validate your CSV
+2.  Compute Reynolds Number: `Re = ρ * V * c / μ`
+3.  Compute Mach Number: `M = V / a`
+4.  Train the PINN with hybrid loss (supervised + physics)
+5.  Predict aerodynamic polars (CL/CD curves)
+6.  Generate pressure distribution (Cp)
+7.  Export 3D wing geometry
 
 ### Step 4: View Results
 On the **Results** page, you will see:
-- 📊 **CL/CD Polar Curves** with stall prediction
-- 📈 **Efficiency (L/D) Chart**
-- 🎯 **Recommended Operating AoA**
-- 🌐 **Interactive 3D Wing Viewer**
+-  **CL/CD Polar Curves** with stall prediction
+-  **Efficiency (L/D) Chart**
+-  **Recommended Operating AoA**
+-  **Interactive 3D Wing Viewer**
   - Color-coded pressure (blue = low, red = high)
   - Orbit/zoom/pan controls
   - Optional airflow particle animation
-- ⬇️ **Download Options:**
+-  **Download Options:**
   - Results (JSON)
   - 3D Geometry (.glb, .json)
   - Performance Report (PDF)
