@@ -1,0 +1,467 @@
+# AeroPINN Kubernetes Deployment Manifests
+# Production-grade deployment with auto-scaling, health checks, and resource management
+# Deploy with: kubectl apply -f deployment.yaml
+
+---
+# Namespace for isolation
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: aeropinn
+  labels:
+    name: aeropinn
+    environment: production
+
+---
+# ConfigMap for environment variables
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: aeropinn-config
+  namespace: aeropinn
+data:
+  # FastAPI Backend Configuration
+  API_HOST: "0.0.0.0"
+  API_PORT: "8000"
+  API_WORKERS: "4"
+  # PyTorch Model Configuration
+  MODEL_CACHE_DIR: "/app/models"
+  BATCH_SIZE: "32"
+  # Logging
+  LOG_LEVEL: "INFO"
+  # Environment
+  ENVIRONMENT: "production"
+  # CORS
+  ALLOWED_ORIGINS: "*"
+
+---
+# Secrets for sensitive data (create with: kubectl create secret generic aeropinn-secrets -n aeropinn --from-literal=db-password=xxx)
+apiVersion: v1
+kind: Secret
+metadata:
+  name: aeropinn-secrets
+  namespace: aeropinn
+type: Opaque
+stringData:
+  # PostgreSQL credentials (should be injected from CI/CD)
+  database_url: "postgresql://user:password@postgres-service:5432/aeropinn"
+  secret_key: "your-secret-key-change-in-production"
+
+---
+# Service for Backend API
+apiVersion: v1
+kind: Service
+metadata:
+  name: aeropinn-backend-service
+  namespace: aeropinn
+  labels:
+    app: aeropinn-backend
+    version: v1
+spec:
+  type: LoadBalancer  # Use LoadBalancer for external access, NodePort for internal
+  selector:
+    app: aeropinn-backend
+  ports:
+  - name: http
+    port: 8000
+    targetPort: 8000
+    protocol: TCP
+  sessionAffinity: None
+
+---
+# Service for Frontend
+apiVersion: v1
+kind: Service
+metadata:
+  name: aeropinn-frontend-service
+  namespace: aeropinn
+  labels:
+    app: aeropinn-frontend
+spec:
+  type: LoadBalancer
+  selector:
+    app: aeropinn-frontend
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+
+---
+# Deployment for FastAPI Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aeropinn-backend
+  namespace: aeropinn
+  labels:
+    app: aeropinn-backend
+    version: v1
+spec:
+  replicas: 2  # Initial replicas, HPA will adjust
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0  # Zero downtime deployment
+  selector:
+    matchLabels:
+      app: aeropinn-backend
+  template:
+    metadata:
+      labels:
+        app: aeropinn-backend
+        version: v1
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8000"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: default
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+      - name: backend
+        image: erenspc/aeropinn-backend:latest  # Should be replaced with specific version tag
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        
+        # Environment variables from ConfigMap and Secrets
+        envFrom:
+        - configMapRef:
+            name: aeropinn-config
+        env:
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: aeropinn-secrets
+              key: database_url
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: aeropinn-secrets
+              key: secret_key
+        
+        # Resource requests and limits (crucial for HPA)
+        resources:
+          requests:
+            cpu: "100m"          # Request 100 millicores
+            memory: "256Mi"      # Request 256 MiB
+          limits:
+            cpu: "500m"          # Max 500 millicores
+            memory: "512Mi"      # Max 512 MiB
+        
+        # Liveness probe: restarts container if API is unresponsive
+        livenessProbe:
+          httpGet:
+            path: /api/health
+            port: 8000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        
+        # Readiness probe: removes pod from service if not ready
+        readinessProbe:
+          httpGet:
+            path: /api/ready
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        
+        # Volume mounts
+        volumeMounts:
+        - name: model-cache
+          mountPath: /app/models
+        - name: tmp
+          mountPath: /tmp
+        
+        # Security context for container
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      # Volumes
+      volumes:
+      - name: model-cache
+        emptyDir:
+          sizeLimit: 2Gi  # Limit model cache to 2GB
+      - name: tmp
+        emptyDir:
+          sizeLimit: 500Mi
+      
+      # Pod scheduling
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - aeropinn-backend
+              topologyKey: kubernetes.io/hostname
+      
+      # Termination grace period
+      terminationGracePeriodSeconds: 30
+
+---
+# Deployment for Next.js Frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aeropinn-frontend
+  namespace: aeropinn
+  labels:
+    app: aeropinn-frontend
+    version: v1
+spec:
+  replicas: 2
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: aeropinn-frontend
+  template:
+    metadata:
+      labels:
+        app: aeropinn-frontend
+        version: v1
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+      - name: frontend
+        image: erenspc/aeropinn-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 3000
+          protocol: TCP
+        
+        resources:
+          requests:
+            cpu: "50m"
+            memory: "128Mi"
+          limits:
+            cpu: "200m"
+            memory: "256Mi"
+        
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          failureThreshold: 3
+        
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          failureThreshold: 2
+        
+        env:
+        - name: NEXT_PUBLIC_API_URL
+          value: "http://aeropinn-backend-service:8000"
+        
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - aeropinn-frontend
+              topologyKey: kubernetes.io/hostname
+      
+      terminationGracePeriodSeconds: 20
+
+---
+# HorizontalPodAutoscaler for Backend (SCALABILITY PROOF)
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aeropinn-backend-hpa
+  namespace: aeropinn
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aeropinn-backend
+  minReplicas: 2
+  maxReplicas: 10  # Scale up to 10 replicas
+  metrics:
+  # CPU-based scaling
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70  # Scale up when CPU > 70%
+  # Memory-based scaling
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80  # Scale up when memory > 80%
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# HorizontalPodAutoscaler for Frontend
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: aeropinn-frontend-hpa
+  namespace: aeropinn
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: aeropinn-frontend
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 15
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+
+---
+# PodDisruptionBudget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: aeropinn-backend-pdb
+  namespace: aeropinn
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: aeropinn-backend
+
+---
+# NetworkPolicy for security (optional, requires CNI support)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: aeropinn-network-policy
+  namespace: aeropinn
+spec:
+  podSelector:
+    matchLabels:
+      app: aeropinn-backend
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: aeropinn-frontend
+    ports:
+    - protocol: TCP
+      port: 8000
+  egress:
+  - to:
+    - namespaceSelector: {}
+    ports:
+    - protocol: TCP
+      port: 5432  # PostgreSQL
+    - protocol: TCP
+      port: 443   # HTTPS
+
+# Deployment Instructions:
+# 1. Create namespace and secrets:
+#    kubectl create namespace aeropinn
+#    kubectl create secret generic aeropinn-secrets -n aeropinn \
+#      --from-literal=database_url='postgresql://user:pass@host:5432/db' \
+#      --from-literal=secret_key='your-secret-key'
+#
+# 2. Deploy manifests:
+#    kubectl apply -f deployment.yaml
+#
+# 3. Verify deployment:
+#    kubectl get pods -n aeropinn
+#    kubectl get hpa -n aeropinn
+#    kubectl describe hpa aeropinn-backend-hpa -n aeropinn
+#
+# 4. Port forwarding for testing:
+#    kubectl port-forward svc/aeropinn-backend-service 8000:8000 -n aeropinn
+#    kubectl port-forward svc/aeropinn-frontend-service 3000:3000 -n aeropinn
+#
+# 5. Load test to trigger autoscaling:
+#    kubectl run -i --tty load-generator --rm --image=busybox --restart=Never -- /bin/sh -c "while sleep 0.01; do wget -q -O- http://aeropinn-backend-service:8000/api/predict; done"
+#
+# 6. Monitor HPA status:
+#    kubectl get hpa aeropinn-backend-hpa -n aeropinn -w
+#
+# 7. View metrics:
+#    kubectl top pod -n aeropinn
+#    kubectl top nodes
