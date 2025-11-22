@@ -1,4 +1,5 @@
-analyze.jsimport FormData from 'form-data';
+'use client';
+
 import fs from 'fs';
 import path from 'path';
 
